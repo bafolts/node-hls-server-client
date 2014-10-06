@@ -1,72 +1,100 @@
 var http = require('http'),
     fs = require('fs'),
-    exec = require('child_process').exec;
+    host = 'localhost',
+    port = '8081',
+    lastFile = null,
+    lastM3U = false,
+    i = 2,
+    length = process.argv.length;
 
-function getOption(url) {
-  return {
-    host: '71.196.237.192',
-    port: '8082',
-    path: '/'+url,
-    encoding: null,
-    method: 'POST'
-  }  
+for (; i < length; i++) {
+    if (process.argv[i].indexOf('--host=') === 0) {
+        host = process.argv[i].substring(7);
+    } else if (process.argv[i].indexOf('--port=') === 0) {
+        port = process.argv[i].substring(7);
+    }
 }
 
-console.log("Watching for changes in uploads");
+function getOption(url) {
+    return {
+        host: host,
+        port: port,
+        path: '/' + url,
+        encoding: null,
+        method: 'POST'
+    };
+}
 
-var lastFile = null;
-var lastM3U = false;
-
-fs.watch('camera', function (event, filename) {
-  if (filename === 'mystream.m3u8') {
-    if (lastM3U) {
-      uploadFile(lastFile + "");
-      lastM3U = false;      
+fs.exists('camera', function (exists) {
+    if (exists) {
+        beginPolling();
+        logCameraPolling();
     } else {
-      lastM3U = true;
+        logCameraDirectoryError();
     }
-  } else {
-    lastFile = filename;
-    lastM3U = false;
-  }
 });
+
+function logCameraDirectoryError() {
+    console.log('Directory \'camera\' does not exist, must not be streaming.');
+}
+
+function logCameraPolling() {
+    console.log('Polling for changes within \'camera\'.');
+}
+
+function beginPolling() {
+    fs.watch('camera', function (event, filename) {
+        if (filename === 'mystream.m3u8') {
+            if (lastM3U) {
+                uploadFile(lastFile + '');
+                lastM3U = false;
+            } else {
+                lastM3U = true;
+            }
+        } else {
+            lastFile = filename;
+            lastM3U = false;
+        }
+    });
+}
 
 function uploadFile(filename) {
 
-  if (filename !== "mystream.m3u8") {
-    var i = filename.substring(8, filename.lastIndexOf("."))*1 - 1;
-    if (i == -1) {
-      i = 2
+    if (filename !== 'mystream.m3u8') {
+        var i = filename.substring(8, filename.lastIndexOf('.')) * 1 - 1;
+        if (i == -1) {
+            i = 2;
+        }
+        filename = 'mystream' + i + '.ts';
     }
-    filename = 'mystream' + i + '.ts';
-  }
-  console.log("Sending " + filename);
-  fs.stat('camera/' + filename, function (err, stats) {
-    var iSent = 0;
-    var o = getOption(filename);
-    o.headers = {
-      "Content-Length": stats.size
-    };
-    var r = http.request(o, function (res) {
-      res.on('data', function (data) {
-	//console.log(data)
-      })
-      res.on('end', function () {
-	if (filename !== "mystream.m3u8") {
-	  uploadFile("mystream.m3u8");
-	}
-      })
+    console.log('Sending ' + filename);
+    fs.stat('camera/' + filename, function (err, stats) {
+        var iSent = 0,
+            o = getOption(filename),
+            f = fs.createReadStream('camera/' + filename),
+            r;
+
+        o.headers = {
+            'Content-Length': stats.size
+        };
+
+        r = http.request(o, function (res) {
+            res.on('data', function (data) {});
+            res.on('end', function () {
+                if (filename !== 'mystream.m3u8') {
+                    uploadFile('mystream.m3u8');
+                }
+            });
+        });
+
+        f.on('data', function (data) {
+            r.write(data);
+            iSent += data.length;
+            if (iSent === stats.size) {
+                r.end();
+            }
+        });
+
     });
-    var f = fs.createReadStream('camera/' + filename);
-    
-    f.on('data', function (data) {
-      r.write(data);
-      iSent += data.length;
-      if (iSent === stats.size) {
-	r.end();
-      }
-    })
-    
-  });
 
 }
