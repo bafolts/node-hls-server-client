@@ -2,6 +2,7 @@ var http = require('http'),
     fs = require('fs'),
     host = 'localhost',
     port = '8081',
+    auth = null,
     lastFile = null,
     lastM3U = false,
     i = 2,
@@ -12,6 +13,8 @@ for (; i < length; i++) {
         host = process.argv[i].substring(7);
     } else if (process.argv[i].indexOf('--port=') === 0) {
         port = process.argv[i].substring(7);
+    } else if (process.argv[i].indexOf('--auth=') === 0) {
+        auth = process.argv[i].substring(7);
     }
 }
 
@@ -77,6 +80,10 @@ function uploadFile(filename) {
         o.headers = {
             'Content-Length': stats.size
         };
+
+        if (auth !== null) {
+            o.headers.Authorization = auth;
+        }
 
         r = http.request(o, function (res) {
             res.on('data', function (data) {});

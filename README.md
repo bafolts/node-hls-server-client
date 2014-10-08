@@ -21,11 +21,11 @@ This is a work in progress. I created this tool to live stream my sister's weddi
 ```
 #### To send the data to the HLS Server
 ```
-node client.js --host=127.0.0.1 --port=8081
+node client.js --host=127.0.0.1 --port=8081 --auth=123somehash321
 ```
 ### On HLS server
 
 ### To start the server
 ```
-node server.js
+node server.js --port=8081 --auth=123somehash321
 ```
